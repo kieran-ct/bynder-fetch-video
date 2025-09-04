@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bynder Video Carousel</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+    }
+    .carousel {
+      display: flex;
+      gap: 20px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      padding-bottom: 10px;
+    }
+    .carousel video {
+      width: 320px;
+      height: 180px;
+      background: #000;
+      scroll-snap-align: start;
+      border-radius: 12px;
+    }
+    .video-wrapper {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 320px;
+    }
+    .label {
+      margin-top: 8px;
+      font-size: 14px;
+      color: #333;
+      text-align: center;
+      max-width: 320px;
+    }
+  </style>
+</head>
+<body>
+  <h2>🎥 Product Videos</h2>
+  <div class="carousel" id="video-carousel"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script>
+    async function loadVideos() {
+      const res = await fetch('videos.json');
+      const videos = await res.json();
+
+      const container = document.getElementById('video-carousel');
+
+      videos.forEach(video => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'video-wrapper';
+
+        const videoEl = document.createElement('video');
+        videoEl.setAttribute('controls', true);
+        videoEl.setAttribute('preload', 'metadata');
+        videoEl.setAttribute('poster', ''); // Add a fallback poster if needed
+
+        if (Hls.isSupported()) {
+          const hls = new Hls();
+          hls.loadSource(video.streamUrl);
+          hls.attachMedia(videoEl);
+        } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
+          videoEl.src = video.streamUrl;
+        }
+
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = video.name;
+
+        wrapper.appendChild(videoEl);
+        wrapper.appendChild(label);
+        container.appendChild(wrapper);
+      });
+    }
+
+    loadVideos();
+  </script>
+</body>
+</html>
