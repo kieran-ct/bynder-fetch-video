@@ -4,6 +4,11 @@ require('dotenv').config();
 const BYNDER_TOKEN = process.env.BYNDER_TOKEN;
 const BYNDER_BASE_URL = process.env.BYNDER_BASE_URL;
 
+// In-memory cache
+let videosCache = [];
+let lastCacheUpdate = null;
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
 function getTodayISODate() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -87,38 +92,78 @@ async function fetchFilteredVideos() {
   return allAssets;
 }
 
-async function getStreamableVideosBySku(sku) {
-  console.log(`🚀 Fetching videos for SKU "${sku}"...`);
+async function refreshCache() {
+  console.log('🔄 Refreshing video cache...');
+  const startTime = Date.now();
+  
   const allAssets = await fetchFilteredVideos();
-  const filtered = [];
+  videosCache = [];
 
-  const withMatchingSku = allAssets.filter(asset => isValidAsset(asset, sku));
-  console.log(`🎯 ${withMatchingSku.length} video(s) match SKU "${sku}"`);
-
-  for (const asset of withMatchingSku) {
+  for (const asset of allAssets) {
     const name = asset.mediaName || asset.name || asset.id;
     const vodUrl = getVodStreamUrl(asset.id);
     if (!vodUrl) continue;
 
     const res = await fetch(vodUrl, { method: 'HEAD' });
     if (res.ok) {
-      console.log(`✅ Public stream: ${name}`);
-      filtered.push({ 
+      videosCache.push({ 
         id: asset.id, 
         name, 
         streamUrl: vodUrl,
         thumbnails: asset.thumbnails,
         dateCreated: asset.dateCreated,
-        dateModified: asset.dateModified
+        dateModified: asset.dateModified,
+        skus: asset.property_SKU || []
       });
-    } else {
-      console.log(`❌ Not streamable or private: ${name}`);
     }
   }
 
-  return filtered;
+  lastCacheUpdate = Date.now();
+  const duration = Date.now() - startTime;
+  console.log(`✅ Cache refreshed: ${videosCache.length} streamable videos (${duration}ms)`);
+}
+
+function isCacheStale() {
+  return !lastCacheUpdate || (Date.now() - lastCacheUpdate) > CACHE_TTL_MS;
+}
+
+async function getStreamableVideosBySku(sku) {
+  console.log(`🚀 Getting videos for SKU "${sku}"...`);
+  
+  // Refresh cache if stale
+  if (isCacheStale()) {
+    await refreshCache();
+  }
+
+  // Filter cached videos by SKU
+  const filtered = videosCache.filter(video => 
+    video.skus.includes(sku)
+  );
+
+  console.log(`🎯 ${filtered.length} video(s) match SKU "${sku}" (from cache)`);
+  return filtered.map(video => ({
+    id: video.id,
+    name: video.name,
+    streamUrl: video.streamUrl,
+    thumbnails: video.thumbnails,
+    dateCreated: video.dateCreated,
+    dateModified: video.dateModified
+  }));
+}
+
+// Background refresh job
+function startBackgroundRefresh() {
+  console.log('🕐 Starting background cache refresh (every 8 minutes)');
+  setInterval(async () => {
+    try {
+      await refreshCache();
+    } catch (error) {
+      console.error('❌ Background cache refresh failed:', error.message);
+    }
+  }, 8 * 60 * 1000); // 8 minutes
 }
 
 module.exports = {
-  getStreamableVideosBySku
+  getStreamableVideosBySku,
+  startBackgroundRefresh
 };

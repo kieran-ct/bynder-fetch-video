@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { getStreamableVideosBySku } = require('./bynderService');
+const { getStreamableVideosBySku, startBackgroundRefresh } = require('./bynderService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -56,4 +56,7 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Bynder Video Service running on port ${PORT}`);
   console.log(`📡 API available at: http://localhost:${PORT}/videos/:sku`);
+  
+  // Start background cache refresh
+  startBackgroundRefresh();
 });
