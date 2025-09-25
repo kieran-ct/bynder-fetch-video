@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bynder Video Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .video-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        video {
+            width: 100%;
+            max-width: 400px;
+            height: auto;
+            border-radius: 8px;
+        }
+        .logs {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Bynder Video Stream Test</h1>
+    
+    <div class="video-container">
+        <h3>EXAMPLE_SKU Video</h3>
+        <video id="video1" controls muted playsinline poster="">
+            <p>Video not supported</p>
+        </video>
+        <br>
+        <button onclick="loadVideo1()">Load EXAMPLE_SKU Video</button>
+        <button onclick="testDirectLoad1()">Test Direct Load</button>
+    </div>
+
+    <div class="video-container">
+        <h3>EXAMPLE_SKU2 Video</h3>
+        <video id="video2" controls muted playsinline poster="">
+            <p>Video not supported</p>
+        </video>
+        <br>
+        <button onclick="loadVideo2()">Load EXAMPLE_SKU2 Video</button>
+        <button onclick="testDirectLoad2()">Test Direct Load</button>
+    </div>
+
+    <div class="video-container">
+        <h3>Console Logs</h3>
+        <div id="logs" class="logs">Click buttons above to test video loading...\n</div>
+        <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+
+    <script>
+        // Test video URLs from API
+        const videos = {
+            EXAMPLE_SKU: {
+                url: 'https://yourdomain.bynder.com/vod-stream/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx/play-hls2.m3u8',
+                poster: 'https://yourdomain.bynder.com/m/example1234567/webimage-EXAMPLE-ASSET.jpg'
+            },
+            EXAMPLE_SKU2: {
+                url: 'https://yourdomain.bynder.com/vod-stream/yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy/play-hls2.m3u8',
+                poster: 'https://yourdomain.bynder.com/m/example7654321/webimage-Example-Asset-2.jpg'
+            }
+        };
+
+        function log(message) {
+            const logDiv = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.textContent += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').textContent = 'Logs cleared.\n';
+        }
+
+        function loadVideo1() {
+            loadVideo('video1', videos.EXAMPLE_SKU, 'EXAMPLE_SKU');
+        }
+
+        function loadVideo2() {
+            loadVideo('video2', videos.EXAMPLE_SKU2, 'EXAMPLE_SKU2');
+        }
+
+        function testDirectLoad1() {
+            testDirectLoad('video1', videos.EXAMPLE_SKU, 'EXAMPLE_SKU');
+        }
+
+        function testDirectLoad2() {
+            testDirectLoad('video2', videos.EXAMPLE_SKU2, 'EXAMPLE_SKU2');
+        }
+
+        function loadVideo(videoId, videoData, sku) {
+            const video = document.getElementById(videoId);
+            log(`Loading ${sku} with HLS.js...`);
+            log(`Stream URL: ${videoData.url}`);
+
+            // Set poster
+            video.poster = videoData.poster;
+
+            if (Hls.isSupported()) {
+                log(`${sku}: HLS.js supported, initializing...`);
+                const hls = new Hls({
+                    debug: false,
+                    enableWorker: false,
+                    xhrSetup: function(xhr, url) {
+                        log(`${sku}: XHR request to ${url}`);
+                    }
+                });
+
+                hls.loadSource(videoData.url);
+                hls.attachMedia(video);
+
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    log(`${sku}: ✅ HLS manifest parsed successfully`);
+                    video.play().then(() => {
+                        log(`${sku}: ✅ Video started playing`);
+                    }).catch(e => {
+                        log(`${sku}: ❌ Autoplay failed: ${e.message}`);
+                    });
+                });
+
+                hls.on(Hls.Events.ERROR, function(event, data) {
+                    log(`${sku}: ❌ HLS Error: ${data.type} - ${data.details}`);
+                    if (data.fatal) {
+                        log(`${sku}: Fatal error, destroying HLS instance`);
+                        hls.destroy();
+                    }
+                });
+
+                hls.on(Hls.Events.MEDIA_ATTACHED, function() {
+                    log(`${sku}: Media attached to video element`);
+                });
+
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                log(`${sku}: Using native HLS support`);
+                video.src = videoData.url;
+                video.addEventListener('loadedmetadata', function() {
+                    log(`${sku}: ✅ Native HLS metadata loaded`);
+                });
+                video.addEventListener('error', function(e) {
+                    log(`${sku}: ❌ Native video error: ${e.message}`);
+                });
+            } else {
+                log(`${sku}: ❌ HLS not supported in this browser`);
+            }
+        }
+
+        function testDirectLoad(videoId, videoData, sku) {
+            const video = document.getElementById(videoId);
+            log(`Testing direct load for ${sku}...`);
+            
+            video.src = videoData.url;
+            video.poster = videoData.poster;
+            
+            video.addEventListener('loadstart', () => log(`${sku}: Load started`));
+            video.addEventListener('loadeddata', () => log(`${sku}: ✅ Data loaded`));
+            video.addEventListener('loadedmetadata', () => log(`${sku}: ✅ Metadata loaded`));
+            video.addEventListener('canplay', () => log(`${sku}: ✅ Can play`));
+            video.addEventListener('canplaythrough', () => log(`${sku}: ✅ Can play through`));
+            video.addEventListener('error', (e) => log(`${sku}: ❌ Error: ${e.message || 'Unknown error'}`));
+            
+            video.load();
+        }
+
+        // Test basic functionality on load
+        document.addEventListener('DOMContentLoaded', function() {
+            log('Page loaded. HLS.js version: ' + (Hls.version || 'unknown'));
+            log('HLS supported: ' + Hls.isSupported());
+            
+            // Test if videos can play HLS natively
+            const testVideo = document.createElement('video');
+            log('Native HLS support: ' + testVideo.canPlayType('application/vnd.apple.mpegurl'));
+        });
+    </script>
+</body>
+</html>

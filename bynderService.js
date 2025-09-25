@@ -43,10 +43,6 @@ function isNotExpired(asset) {
   return expiry >= today;
 }
 
-function hasWebsiteUsageRights(asset) {
-  const usageRights = asset?.property_Usage_Rights || [];
-  return Array.isArray(usageRights) && usageRights.includes('Website');
-}
 
 function isValidAsset(asset, targetSku) {
   const skuList = asset?.property_SKU || [];
@@ -59,7 +55,7 @@ async function fetchFilteredVideos() {
   let allAssets = [];
 
   while (true) {
-    const url = `${BYNDER_BASE_URL}/api/v4/media/?type=video&page=${page}&limit=${perPage}`;
+    const url = `${BYNDER_BASE_URL}/api/v4/media/?type=video&property_Usage_Rights=Website&page=${page}&limit=${perPage}`;
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${BYNDER_TOKEN}` }
     });
@@ -72,16 +68,8 @@ async function fetchFilteredVideos() {
     const pageAssets = await res.json();
     
     for (const asset of pageAssets) {
-      const detailUrl = `${BYNDER_BASE_URL}/api/v4/media/${asset.id}/`;
-      const detailRes = await fetch(detailUrl, {
-        headers: { Authorization: `Bearer ${BYNDER_TOKEN}` }
-      });
-
-      if (detailRes.ok) {
-        const fullAsset = await detailRes.json();
-        if (isNotExpired(fullAsset) && hasWebsiteUsageRights(fullAsset)) {
-          allAssets.push(fullAsset);
-        }
+      if (isNotExpired(asset)) {
+        allAssets.push(asset);
       }
     }
 

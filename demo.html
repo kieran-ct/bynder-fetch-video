@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Overlay Demo - Product Detail Page</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        .product-page {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .product-image {
+            width: 100%;
+            height: 300px;
+            background: #eee;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .product-id {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        
+        .test-links {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 30px;
+        }
+        
+        .test-links h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        
+        .test-link {
+            display: inline-block;
+            margin: 10px 10px 10px 0;
+            padding: 12px 20px;
+            background: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        
+        .test-link:hover {
+            background: #0056b3;
+        }
+        
+        .instructions {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .instructions p {
+            margin: 0;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="product-page">
+        <div class="instructions">
+            <p><strong>Demo Instructions:</strong> Click the test links below to simulate CRM links with the video overlay parameter. The overlay will show if videos exist for the product SKU.</p>
+        </div>
+        
+        <div class="product-image">
+            Product Image Placeholder
+        </div>
+        
+        <h1>Sample Product</h1>
+        <div class="product-id">Product ID: <strong id="current-product-id">Loading...</strong></div>
+        
+        <p>This is a sample product detail page. In a real implementation, the product ID would be dynamically injected by your tagging solution using something like <code>% product.id %</code>.</p>
+        
+        <div class="test-links">
+            <h3>Test Video Overlay</h3>
+            <p>These links simulate what your CRM would generate:</p>
+            
+            <a href="?show-overlay-video=true&product=EXAMPLE_SKU" class="test-link">
+                📹 Show Video (EXAMPLE_SKU)
+            </a>
+            
+            <a href="?show-overlay-video=true&product=EXAMPLE_SKU2" class="test-link">
+                📹 Show Video (EXAMPLE_SKU2)
+            </a>
+            
+            <a href="?" class="test-link">
+                🚫 No Video Parameter
+            </a>
+            
+            <button onclick="testVideoPlayback()" class="test-link" style="border: none; margin-top: 10px;">
+                🔬 Test Video Playback
+            </button>
+        </div>
+        
+        <div id="video-test-section" style="display: none; margin-top: 30px; background: #f8f9fa; padding: 20px; border-radius: 8px;">
+            <h3>Video Playback Test</h3>
+            <p>This will test if Bynder video streams work in your browser:</p>
+            
+            <div style="margin: 20px 0;">
+                <video id="test-video" controls muted playsinline style="width: 100%; max-width: 400px; border-radius: 8px;">
+                    <p>Video not supported</p>
+                </video>
+            </div>
+            
+            <div style="margin: 10px 0;">
+                <button onclick="loadTestVideo('EXAMPLE_SKU')" style="padding: 8px 16px; margin: 5px; border: none; border-radius: 4px; background: #28a745; color: white; cursor: pointer;">
+                    Test EXAMPLE_SKU
+                </button>
+                <button onclick="loadTestVideo('EXAMPLE_SKU2')" style="padding: 8px 16px; margin: 5px; border: none; border-radius: 4px; background: #28a745; color: white; cursor: pointer;">
+                    Test EXAMPLE_SKU2
+                </button>
+                <button onclick="hideVideoTest()" style="padding: 8px 16px; margin: 5px; border: none; border-radius: 4px; background: #6c757d; color: white; cursor: pointer;">
+                    Hide Test
+                </button>
+            </div>
+            
+            <div id="test-logs" style="background: white; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: 200px; overflow-y: auto; border: 1px solid #ddd; margin-top: 10px;">
+                Click test buttons to see video loading logs...
+            </div>
+        </div>
+        
+        <h3>How it works:</h3>
+        <ol>
+            <li>CRM generates link with <code>?show-overlay-video=true</code></li>
+            <li>Tagging solution injects the video overlay script</li>
+            <li>Script detects URL parameter and product ID</li>
+            <li>Fetches videos from Railway API service</li>
+            <li>Shows mobile-first video overlay if videos exist</li>
+        </ol>
+    </div>
+
+    <script>
+        // Get product ID from URL parameter or default to EXAMPLE_SKU
+        const urlParams = new URLSearchParams(window.location.search);
+        const PRODUCT_ID = urlParams.get('product') || 'EXAMPLE_SKU'; 
+        
+        console.log('Demo: Using Product ID:', PRODUCT_ID);
+        
+        // Update the page to show current product ID
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('current-product-id').textContent = PRODUCT_ID;
+        });
+        
+        // Video Overlay Implementation (inline for demo)
+        (function() {
+            'use strict';
+
+            const API_ENDPOINT = 'https://your-api-endpoint.example.com';
+
+            class VideoOverlay {
+                constructor(config = {}) {
+                    this.apiEndpoint = config.apiEndpoint || API_ENDPOINT;
+                    this.productId = config.productId || null;
+                    this.overlay = null;
+                    this.isVisible = false;
+                    
+                    this.init();
+                }
+
+                init() {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const showOverlay = urlParams.get('show-overlay-video');
+                    
+                    if (showOverlay === 'true') {
+                        this.loadVideoOverlay();
+                    }
+                }
+
+                async loadVideoOverlay() {
+                    if (!this.productId) {
+                        console.warn('❌ Product ID not available for video overlay');
+                        return;
+                    }
+
+                    try {
+                        console.log(`📡 Fetching videos for product: ${this.productId}`);
+                        const response = await fetch(`${this.apiEndpoint}/videos/${this.productId}`);
+                        const data = await response.json();
+
+                        if (data.videos && data.videos.length > 0) {
+                            this.showOverlay(data.videos[0]);
+                        } else {
+                            console.log(`ℹ️ No videos available for product: ${this.productId}`);
+                            alert('No videos available for this product');
+                        }
+                    } catch (error) {
+                        console.error('❌ Error fetching video:', error);
+                        alert('Error loading video');
+                    }
+                }
+
+                showOverlay(video) {
+                    if (this.isVisible) return;
+
+                    this.createOverlay(video);
+                    document.body.appendChild(this.overlay);
+                    
+                    requestAnimationFrame(() => {
+                        this.overlay.classList.add('visible');
+                        this.isVisible = true;
+                    });
+
+                    document.body.style.overflow = 'hidden';
+                }
+
+                createOverlay(video) {
+                    this.overlay = document.createElement('div');
+                    this.overlay.className = 'video-overlay';
+                    
+                    this.overlay.innerHTML = `
+                        <div class="video-overlay-backdrop"></div>
+                        <div class="video-overlay-content">
+                            <div class="video-overlay-header">
+                                <button class="video-overlay-close">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="video-overlay-player">
+                                <video 
+                                    id="demo-video-player"
+                                    controls
+                                    muted
+                                    playsinline
+                                    poster="${video.thumbnails?.webimage || ''}"
+                                    style="width: 100%; height: 100%;"
+                                >
+                                    <source src="${video.streamUrl}" type="application/x-mpegURL">
+                                    <p>Your browser does not support HLS video streaming. 
+                                       <a href="${video.streamUrl}" target="_blank">Open stream directly</a>
+                                    </p>
+                                </video>
+                            </div>
+                            <div class="video-overlay-info">
+                                <h3>${video.name || 'Product Video'}</h3>
+                            </div>
+                        </div>
+                    `;
+
+                    // Add event listeners
+                    this.overlay.querySelector('.video-overlay-backdrop').addEventListener('click', () => this.hideOverlay());
+                    this.overlay.querySelector('.video-overlay-close').addEventListener('click', () => this.hideOverlay());
+
+                    this.addStyles();
+                    
+                    // Initialize HLS player after DOM is ready
+                    setTimeout(() => {
+                        this.initVideoPlayer(video.streamUrl);
+                    }, 100);
+                }
+
+                initVideoPlayer(streamUrl) {
+                    const video = document.getElementById('demo-video-player');
+                    
+                    if (!video) {
+                        console.error('🎬 [Overlay] Video element not found!');
+                        return;
+                    }
+                    
+                    console.log('🎬 [Overlay] Initializing video player for:', streamUrl);
+                    
+                    if (Hls.isSupported()) {
+                        console.log('🎬 [Overlay] Using HLS.js for video playback');
+                        const hls = new Hls({
+                            debug: false,
+                            enableWorker: false,
+                        });
+                        hls.loadSource(streamUrl);
+                        hls.attachMedia(video);
+                        
+                        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                            console.log('🎬 [Overlay] ✅ HLS manifest loaded successfully');
+                            // Try to play
+                            video.play().then(() => {
+                                console.log('🎬 [Overlay] ✅ Video started playing');
+                            }).catch(e => {
+                                console.log('🎬 [Overlay] ❌ Autoplay failed:', e.message);
+                                console.log('🎬 [Overlay] ℹ️ User can click play manually');
+                            });
+                        });
+                        
+                        hls.on(Hls.Events.ERROR, (event, data) => {
+                            console.error('🎬 [Overlay] ❌ HLS error:', data.type, '-', data.details);
+                            if (data.fatal) {
+                                console.log('🎬 [Overlay] Fatal error, trying direct load...');
+                                hls.destroy();
+                                video.src = streamUrl;
+                            }
+                        });
+                        
+                        hls.on(Hls.Events.MEDIA_ATTACHED, () => {
+                            console.log('🎬 [Overlay] Media attached to video element');
+                        });
+                        
+                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                        console.log('🎬 [Overlay] Using native HLS support');
+                        video.src = streamUrl;
+                        video.addEventListener('loadedmetadata', () => {
+                            console.log('🎬 [Overlay] ✅ Native HLS metadata loaded');
+                            video.play().catch(e => {
+                                console.log('🎬 [Overlay] ❌ Autoplay failed:', e.message);
+                            });
+                        });
+                        video.addEventListener('error', (e) => {
+                            console.error('🎬 [Overlay] ❌ Native video error:', e.message || 'Unknown error');
+                        });
+                    } else {
+                        console.error('🎬 [Overlay] ❌ HLS not supported in this browser');
+                        console.log('🎬 [Overlay] Trying direct load as fallback...');
+                        video.src = streamUrl;
+                        video.addEventListener('error', (e) => {
+                            console.error('🎬 [Overlay] ❌ Direct load failed:', e.message || 'Unknown error');
+                        });
+                    }
+
+                    // Add common event listeners for debugging
+                    video.addEventListener('loadstart', () => console.log('🎬 [Overlay] Load started'));
+                    video.addEventListener('loadeddata', () => console.log('🎬 [Overlay] ✅ Data loaded'));
+                    video.addEventListener('canplay', () => console.log('🎬 [Overlay] ✅ Can play'));
+                    video.addEventListener('playing', () => console.log('🎬 [Overlay] ✅ Playing!'));
+                }
+
+                hideOverlay() {
+                    if (!this.isVisible || !this.overlay) return;
+
+                    const video = this.overlay.querySelector('video');
+                    if (video) {
+                        video.pause();
+                    }
+
+                    this.overlay.classList.remove('visible');
+                    document.body.style.overflow = '';
+                    
+                    setTimeout(() => {
+                        if (this.overlay && this.overlay.parentNode) {
+                            this.overlay.parentNode.removeChild(this.overlay);
+                        }
+                        this.overlay = null;
+                        this.isVisible = false;
+                    }, 300);
+                }
+
+                addStyles() {
+                    if (document.getElementById('video-overlay-styles')) return;
+
+                    const styles = document.createElement('style');
+                    styles.id = 'video-overlay-styles';
+                    styles.textContent = `
+                        .video-overlay {
+                            position: fixed;
+                            top: 0;
+                            left: 0;
+                            width: 100%;
+                            height: 100%;
+                            z-index: 9999;
+                            opacity: 0;
+                            visibility: hidden;
+                            transition: opacity 0.3s ease, visibility 0.3s ease;
+                        }
+
+                        .video-overlay.visible {
+                            opacity: 1;
+                            visibility: visible;
+                        }
+
+                        .video-overlay-backdrop {
+                            position: absolute;
+                            top: 0;
+                            left: 0;
+                            width: 100%;
+                            height: 100%;
+                            background: rgba(0, 0, 0, 0.8);
+                            cursor: pointer;
+                        }
+
+                        .video-overlay-content {
+                            position: relative;
+                            width: 100%;
+                            height: 100%;
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: center;
+                            align-items: center;
+                            padding: 20px;
+                            box-sizing: border-box;
+                        }
+
+                        .video-overlay-header {
+                            position: absolute;
+                            top: 20px;
+                            right: 20px;
+                            z-index: 10;
+                        }
+
+                        .video-overlay-close {
+                            background: rgba(255, 255, 255, 0.9);
+                            border: none;
+                            border-radius: 50%;
+                            width: 44px;
+                            height: 44px;
+                            cursor: pointer;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: #333;
+                            transition: background 0.2s ease;
+                        }
+
+                        .video-overlay-close:hover {
+                            background: rgba(255, 255, 255, 1);
+                        }
+
+                        .video-overlay-player {
+                            width: 100%;
+                            max-width: 400px;
+                            max-height: 70vh;
+                            border-radius: 12px;
+                            overflow: hidden;
+                            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+                        }
+
+                        .video-overlay-player video {
+                            width: 100%;
+                            height: 100%;
+                            display: block;
+                            background: #000;
+                        }
+
+                        .video-overlay-info {
+                            margin-top: 20px;
+                            text-align: center;
+                            color: white;
+                            max-width: 400px;
+                        }
+
+                        .video-overlay-info h3 {
+                            margin: 0;
+                            font-size: 18px;
+                            font-weight: 600;
+                            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+                        }
+
+                        @media (max-width: 768px) {
+                            .video-overlay-content {
+                                padding: 10px;
+                            }
+                            
+                            .video-overlay-player {
+                                max-width: 95vw;
+                                max-height: 80vh;
+                            }
+                            
+                            .video-overlay-header {
+                                top: 10px;
+                                right: 10px;
+                            }
+                            
+                            .video-overlay-close {
+                                width: 40px;
+                                height: 40px;
+                            }
+                            
+                            .video-overlay-info h3 {
+                                font-size: 16px;
+                            }
+                        }
+
+                        @media (max-width: 480px) {
+                            .video-overlay-player {
+                                max-width: 90vw;
+                                max-height: 75vh;
+                            }
+                        }
+                    `;
+
+                    document.head.appendChild(styles);
+                }
+            }
+
+            // Initialize when DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => {
+                    new VideoOverlay({ productId: PRODUCT_ID });
+                });
+            } else {
+                new VideoOverlay({ productId: PRODUCT_ID });
+            }
+
+        })();
+
+        // Video testing functions
+        const testVideos = {
+            'EXAMPLE_SKU': {
+                url: 'https://yourdomain.bynder.com/vod-stream/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx/play-hls2.m3u8',
+                poster: 'https://yourdomain.bynder.com/m/example1234567/webimage-EXAMPLE-ASSET.jpg'
+            },
+            'EXAMPLE_SKU2': {
+                url: 'https://yourdomain.bynder.com/vod-stream/yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy/play-hls2.m3u8',
+                poster: 'https://yourdomain.bynder.com/m/example7654321/webimage-Example-Asset-2.jpg'
+            }
+        };
+
+        function testLog(message) {
+            const logDiv = document.getElementById('test-logs');
+            if (logDiv) {
+                const timestamp = new Date().toLocaleTimeString();
+                logDiv.textContent += `[${timestamp}] ${message}\n`;
+                logDiv.scrollTop = logDiv.scrollHeight;
+            }
+            console.log('[VideoTest]', message);
+        }
+
+        function testVideoPlayback() {
+            document.getElementById('video-test-section').style.display = 'block';
+            testLog('Video test section opened');
+            testLog('HLS.js version: ' + (Hls.version || 'unknown'));
+            testLog('HLS.js supported: ' + Hls.isSupported());
+            
+            // Test native HLS support
+            const testEl = document.createElement('video');
+            testLog('Native HLS support: ' + testEl.canPlayType('application/vnd.apple.mpegurl'));
+        }
+
+        function hideVideoTest() {
+            document.getElementById('video-test-section').style.display = 'none';
+            const video = document.getElementById('test-video');
+            if (video) {
+                video.pause();
+                video.src = '';
+            }
+        }
+
+        function loadTestVideo(sku) {
+            const video = document.getElementById('test-video');
+            const videoData = testVideos[sku];
+            
+            if (!videoData) {
+                testLog(`❌ No video data for SKU: ${sku}`);
+                return;
+            }
+
+            testLog(`🔬 Testing ${sku} video playback...`);
+            testLog(`Stream URL: ${videoData.url}`);
+
+            // Set poster
+            video.poster = videoData.poster;
+            
+            if (Hls.isSupported()) {
+                testLog(`${sku}: Using HLS.js for playback`);
+                const hls = new Hls({
+                    debug: false,
+                    enableWorker: false,
+                });
+
+                hls.loadSource(videoData.url);
+                hls.attachMedia(video);
+
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    testLog(`${sku}: ✅ HLS manifest parsed successfully`);
+                    video.play().then(() => {
+                        testLog(`${sku}: ✅ Video started playing`);
+                    }).catch(e => {
+                        testLog(`${sku}: ❌ Autoplay failed: ${e.message}`);
+                        testLog(`${sku}: ℹ️ Try clicking play button manually`);
+                    });
+                });
+
+                hls.on(Hls.Events.ERROR, function(event, data) {
+                    testLog(`${sku}: ❌ HLS Error: ${data.type} - ${data.details}`);
+                    if (data.fatal) {
+                        testLog(`${sku}: Fatal error, destroying HLS instance`);
+                        hls.destroy();
+                        // Try fallback
+                        testLog(`${sku}: Trying direct video load as fallback...`);
+                        video.src = videoData.url;
+                    }
+                });
+
+                hls.on(Hls.Events.MEDIA_ATTACHED, function() {
+                    testLog(`${sku}: Media attached to video element`);
+                });
+
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                testLog(`${sku}: Using native HLS support`);
+                video.src = videoData.url;
+                video.addEventListener('loadedmetadata', function() {
+                    testLog(`${sku}: ✅ Native HLS metadata loaded`);
+                });
+                video.addEventListener('error', function(e) {
+                    testLog(`${sku}: ❌ Native video error: ${e.message || 'Unknown error'}`);
+                });
+            } else {
+                testLog(`${sku}: ❌ HLS not supported in this browser`);
+                testLog(`${sku}: Trying direct load anyway...`);
+                video.src = videoData.url;
+                video.addEventListener('error', function(e) {
+                    testLog(`${sku}: ❌ Direct load failed: ${e.message || 'Unknown error'}`);
+                });
+            }
+
+            // Add common event listeners
+            video.addEventListener('loadstart', () => testLog(`${sku}: Load started`));
+            video.addEventListener('loadeddata', () => testLog(`${sku}: ✅ Data loaded`));
+            video.addEventListener('canplay', () => testLog(`${sku}: ✅ Can play`));
+            video.addEventListener('playing', () => testLog(`${sku}: ✅ Playing!`));
+        }
+
+    </script>
+</body>
+</html>
