@@ -7,3 +7,7 @@ node_modules/
 # OS / editor clutter
 .DS_Store
 *.log
+
+# Internal docs and archives
+SOCIAL_VIDEO_INTEGRATION_BRIEF.md
+*.zip
